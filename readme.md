@@ -9,7 +9,11 @@ PayPalPHP is a PHP5 implementation of the [PayPal NVP API][]
 
 ### Change Log
 
-* @todo Update changelog
+#### 0.2
+* Prevent URL encoding of ampersands in query string (causes 'Unspecified Method' error).
+* Added reverseTransaction, massPay, getPalDetails and addressVerify methods.
+* Added examples for methods mentioned above.
+* Added CA root certificate bundle. Prevents PHP cURL error 60.
 
 ### Release Notes
 
