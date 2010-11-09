@@ -25,7 +25,7 @@ class PayPal
 	public  $response	 = null;
 	private $items	 	 = null;
 	private $payer		 = null;
-	private $cardDetails = null;
+	private $creditCard  = null;
 	private $profile	 = null;
 	private $recipients  = null;
 	private $currency	 = null;
@@ -217,7 +217,10 @@ class PayPal
 	 */
 	private function getProfileDetails()
 	{
-		if(is_null($this->profile)) $this->error('UNDEFINED_PROFILE_DETAILS');
+		if(is_null($this->profile)) {
+			$this->error('UNDEFINED_PROFILE_DETAILS');
+			return false;
+		}
 		$profile = $this->profile;
 		$this->profile = null;
 		return $profile;
@@ -225,6 +228,7 @@ class PayPal
 	
 	/**
 	 * Set payer details associated with a recurring payment profile
+	 * @todo Validate input
 	 * @param string $email Email address of payer
 	 * @param string $street
 	 * @param string $city
@@ -244,7 +248,10 @@ class PayPal
 	 */
 	private function getPayerDetails()
 	{
-		if(is_null($this->payer)) $this->error('UNDEFINED_PAYER_DETAILS');
+		if(is_null($this->payer)) {
+			$this->error('UNDEFINED_PAYER_DETAILS');
+			return false;
+		}
 		$payer = $this->payer;
 		$this->payer = null;
 		return $payer;
@@ -261,11 +268,11 @@ class PayPal
 	{
 		$type = strtoupper($type);
 		if(!array_key_exists($type, $this->cardTypes)) $this->error('INVALID_CARD_TYPE');
-		if(!is_numeric($number)) $this->error('INVALID_CARD_NUMBER');
-		if(!$this->cardValidate($type, $number)) $this->error('CARD_VALIDATION_FAILED');
-		if(!is_int($expiry)) $this->error('INVALID_EXPIRY_DATE');
-		if(!is_int($cvv2)) $this->error('INVALID_CARD_CVV2');
-		$this->creditCard = array('CREDITCARDTYPE' => $type, 'ACCT' => $number, 'EXPDATE' => $expiry, 'CVV2' => $cvv2);
+		elseif(!is_numeric($number)) $this->error('INVALID_CARD_NUMBER');
+		elseif(!$this->cardValidate($type, $number)) $this->error('CARD_VALIDATION_FAILED');
+		elseif(!is_int($expiry)) $this->error('INVALID_EXPIRY_DATE');
+		elseif(!is_int($cvv2)) $this->error('INVALID_CARD_CVV2');
+		else $this->creditCard = array('CREDITCARDTYPE' => $type, 'ACCT' => $number, 'EXPDATE' => $expiry, 'CVV2' => $cvv2);
 	}
 	
 	/**
@@ -290,7 +297,10 @@ class PayPal
 	 */
 	private function getCardDetails()
 	{
-		if(is_null($this->creditCard)) $this->error('UNDEFINED_CARD_DETAILS');
+		if(is_null($this->creditCard)) {
+			$this->error('UNDEFINED_CARD_DETAILS');
+			return false;
+		}
 		$card = $this->creditCard;
 		$this->creditCard = null;
 		return $card;
@@ -314,6 +324,7 @@ class PayPal
 	
 	/**
 	 * Add a mass payment recipient
+	 * @todo Add email validation
 	 * @param string $email
 	 * @param string|int|float $amt
 	 * @return void
@@ -322,9 +333,11 @@ class PayPal
 	{
 		$amt = str_replace(',', '', $amt);
 		if(!is_numeric($amt)) $this->error('INVALID_PRICE');
-		if(count($this->recipients) >= 250) $this->error('MAX_RECIPIENTS');
-		$amt = number_format($amt, 2, '.', '');
-		$this->recipients[] = array('email' => $email, 'amt' => $amt);
+		elseif(count($this->recipients) >= 250) $this->error('MAX_RECIPIENTS');
+		else {
+			$amt = number_format($amt, 2, '.', '');
+			$this->recipients[] = array('email' => $email, 'amt' => $amt);
+		}
 	}
 	
 	/**
@@ -334,7 +347,10 @@ class PayPal
 	private function getRecipients()
 	{
 		$i = 0;
-		if(is_null($this->recipients)) $this->error('INVALID_RECIPIENTS');
+		if(is_null($this->recipients)){
+			$this->error('INVALID_RECIPIENTS');
+			return false;
+		}
 		foreach($this->recipients as $recipient){
 			$array['L_EMAIL'.$i] = $recipient['email'];
 			$array['L_AMT'.$i] = $recipient['amt'];
@@ -356,8 +372,10 @@ class PayPal
 	{
 		$amt = str_replace(',', '', $amt);
 		if(!is_numeric($amt)) $this->error('INVALID_AMT');
-		$amt = number_format($amt, 2, '.', '');
-		$this->items[$name] = array('desc' => $desc, 'price' => $amt, 'qty' => $qty);
+		else {
+			$amt = number_format($amt, 2, '.', '');
+			$this->items[$name] = array('desc' => $desc, 'price' => $amt, 'qty' => $qty);
+		}
 	}
 	
 	/**
@@ -371,7 +389,10 @@ class PayPal
 		$i = 0;
 		$total = 0;
 		$currency = $this->getCurrencyCode();
-		if(is_null($this->items)) $this->error('INVALID_ITEMS');
+		if(is_null($this->items)){
+			$this->error('INVALID_ITEMS');
+			return false;
+		}
 		foreach($this->items as $key => $val){
 			$array['L_PAYMENTREQUEST_0_NAME'.$i] = $key;
 			$array['L_PAYMENTREQUEST_0_DESC'.$i] = $val['desc'];
@@ -394,7 +415,7 @@ class PayPal
 	public function setCurrencyCode($currency)
 	{
 		if(!in_array($currency, $this->currencies)) $this->error('INVALID_CURRENCY_CODE');
-		$this->currency = $currency;
+		else $this->currency = $currency;
 	}
 	
 	/**
@@ -403,7 +424,10 @@ class PayPal
 	 */
 	private function getCurrencyCode()
 	{
-		if(is_null($this->currency)) $this->error('UNDEFINED_CURRENCY_CODE');
+		if(is_null($this->currency)){
+			$this->error('UNDEFINED_CURRENCY_CODE');
+			return false;
+		}
 		$currency = $this->currency;
 		$this->currency = null;
 		return $currency;
