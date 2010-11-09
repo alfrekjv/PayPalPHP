@@ -24,6 +24,9 @@ class PayPal
 	// Forward declare other variables
 	public  $response	 = null;
 	private $items	 	 = null;
+	private $payer		 = null;
+	private $cardDetails = null;
+	private $profile	 = null;
 	private $recipients  = null;
 	private $currency	 = null;
 	private $environment = null;
@@ -32,6 +35,12 @@ class PayPal
 	private $currencies = array('AUD', 'BRL', 'CAD', 'CZK', 'DKK', 'EUR', 'HKD', 'HUF', 
 								'ILS', 'JPY', 'MYR', 'MXN', 'NOK', 'NZD', 'PHP', 'PLN', 
 								'GBP', 'SGD', 'SEK', 'CHF', 'TWD', 'THB', 'USD');
+	
+	// Supported credit card types and corresponding validation regex
+	private $cardTypes = array('VISA' 		=> '/^4\d{12}(\d{3})?$/',
+							   'MASTERCARD' => '/^5[1-5]\d{14}$/',
+							   'DISCOVER' 	=> '/^6011\d{14}$/',
+							   'AMEX' 		=> '/^3(4|7)\d{13}$/');
 	
 	/**
 	 * Check and set API credentials and environment
@@ -172,6 +181,122 @@ class PayPal
 	}
 	
 	/**
+	 * Create a recurring payments profile
+	 * @return array
+	 */
+	public function createRecurringPaymentsProfile()
+	{
+		$profile = $this->getProfileDetails();
+		$payer = $this->getPayerDetails();
+		$card = $this->getCardDetails();
+		$array = array_merge($profile, $payer, $card);
+		$this->buildRequest('createRecurringPaymentsProfile', $array);
+		if($this->execute()) return $this->response;
+		if($this->debug) $this->debug();
+		return false;
+	}
+	
+	/**
+	 * Set profile details associated with a recurring payment profile
+	 * @todo Validate parameters
+	 * @param string $start The date when billing for this profile begins
+	 * @param string $desc Description of the recurring payment
+	 * @param string $period Unit for billing
+	 * @param string $freq Number of billing periods in 1 billing cycle
+	 * @param string|int|float Billing amount for each billing cycle
+	 */
+	public function setProfileDetails($start, $desc, $period, $freq, $amt)
+	{
+		$this->profile = array('PROFILESTARTDATE' => $start, 'DESC' => $desc, 'BILLINGPERIOD' => $period,
+							   'CURRENCYCODE' => $this->getCurrencyCode(), 'BILLINGFREQUENCY' => $freq, 'AMT' => $amt);
+	}
+	
+	/**
+	 * Return profile details set using setProfileDetails()
+	 * @return array
+	 */
+	private function getProfileDetails()
+	{
+		if(is_null($this->profile)) $this->error('UNDEFINED_PROFILE_DETAILS');
+		$profile = $this->profile;
+		$this->profile = null;
+		return $profile;
+	}
+	
+	/**
+	 * Set payer details associated with a recurring payment profile
+	 * @param string $email Email address of payer
+	 * @param string $street
+	 * @param string $city
+	 * @param string $state
+	 * @param string $code 2-character IS0-3166-1 country code
+	 * @param string $zip
+	 */
+	public function setPayerDetails($email, $street, $city, $state, $code, $zip)
+	{
+		$this->payer = array('EMAIL' => $email, 'STREET' => $street, 'CITY' =>$city, 
+							 'STATE' => $state, 'COUNTRYCODE' => $code, 'ZIP' => $zip);
+	}
+	
+	/**
+	 * Return payer details set using setPayerDetails()
+	 * @return array
+	 */
+	private function getPayerDetails()
+	{
+		if(is_null($this->payer)) $this->error('UNDEFINED_PAYER_DETAILS');
+		$payer = $this->payer;
+		$this->payer = null;
+		return $payer;
+	}
+	
+	/**
+	 * Set credit card details associated with a recurring payment profile
+	 * @param string $type Supported credit card type
+	 * @param string $acct Must be a string to prevent int/float overflow
+	 * @param int $expiry Card expiry date
+	 * @param int $cvv2 Must NOT be stored after a transaction has been completed
+	 */
+	public function setCardDetails($type, $number, $expiry, $cvv2)
+	{
+		$type = strtoupper($type);
+		if(!array_key_exists($type, $this->cardTypes)) $this->error('INVALID_CARD_TYPE');
+		if(!is_numeric($number)) $this->error('INVALID_CARD_NUMBER');
+		if(!$this->cardValidate($type, $number)) $this->error('CARD_VALIDATION_FAILED');
+		if(!is_int($expiry)) $this->error('INVALID_EXPIRY_DATE');
+		if(!is_int($cvv2)) $this->error('INVALID_CARD_CVV2');
+		$this->creditCard = array('CREDITCARDTYPE' => $type, 'ACCT' => $number, 'EXPDATE' => $expiry, 'CVV2' => $cvv2);
+	}
+	
+	/**
+	 * Validate credit card number against regex and mod 10 algorithm
+	 * @todo Add Maestro and Solo card support
+	 * @param string $type
+	 * @param string $number
+	 */
+	private function cardValidate($type, $number)
+	{
+		if(preg_match($this->cardTypes[$type], $number)){
+	    	for($i = 0; $i < strlen($number)-1; $i = $i+2){
+	        	$number[$i] = array_sum(str_split($number[$i] * 2));
+	    	}
+	    	if(array_sum(str_split($number)) % 10 == 0) return true;
+		}
+	}
+	
+	/**
+	 * Return card details set using setCardDetails()
+	 * @return array
+	 */
+	private function getCardDetails()
+	{
+		if(is_null($this->creditCard)) $this->error('UNDEFINED_CARD_DETAILS');
+		$card = $this->creditCard;
+		$this->creditCard = null;
+		return $card;
+	}
+	
+	/**
 	 * Make a payment to one or more PayPal account holders
 	 * @todo Implement User ID receiver type
 	 * @return array
@@ -280,6 +405,7 @@ class PayPal
 	{
 		if(is_null($this->currency)) $this->error('UNDEFINED_CURRENCY_CODE');
 		$currency = $this->currency;
+		$this->currency = null;
 		return $currency;
 	}
 	
@@ -352,15 +478,23 @@ class PayPal
 	private function error($code)
 	{
 		$trace = debug_backtrace();
-		$errors['INVALID_ENVIRONMENT']	   = "PayPal environment must be either 'LIVE' or 'SANDBOX'";
-		$errors['INVALID_TOKEN']		   = 'Invalid token supplied';
-		$errors['INVALID_ITEMS']		   = 'No items added to this transaction. Add at least 1 item using addItem()';
-		$errors['INVALID_AMT']		 	   = "Amount must be a numeric value";
-		$errors['INVALID_CURRENCY_CODE']   = 'Currency must be a PayPal supported ISO-4217 currency code';
-		$errors['UNDEFINED_CURRENCY_CODE'] = 'Currency code is undefined. Set currency code using setCurrencyCode()';
-		$errors['INVALID_TRANSACTIONID']   = 'Transaction ID must be an alphanumeric string and contain 17 characters';
-		$errors['INVALID_RECIPIENTS']	   = 'No recipients added. Add at least 1 recipient using addRecipient()';
-		$errors['MAX_RECIPIENTS']		   = 'Maximum of 250 recipients per Mass Payment transaction';
+		$errors['INVALID_ENVIRONMENT']		 = "PayPal environment must be either 'LIVE' or 'SANDBOX'";
+		$errors['INVALID_TOKEN']			 = 'Invalid token supplied';
+		$errors['INVALID_ITEMS']			 = 'No items added to this transaction. Add at least 1 item using addItem()';
+		$errors['INVALID_AMT']				 = "Amount must be a numeric value";
+		$errors['INVALID_CURRENCY_CODE']	 = 'Currency must be a PayPal supported ISO-4217 currency code';
+		$errors['UNDEFINED_CURRENCY_CODE']	 = 'Currency code is undefined. Set currency code using setCurrencyCode()';
+		$errors['INVALID_TRANSACTIONID']	 = 'Transaction ID must be an alphanumeric string and contain 17 characters';
+		$errors['INVALID_RECIPIENTS']		 = 'No recipients added. Add at least 1 recipient using addRecipient()';
+		$errors['MAX_RECIPIENTS']			 = 'Maximum of 250 recipients per Mass Payment transaction';
+		$errors['UNDEFINED_PAYER_DETAILS']	 = 'Payer details undefined. You must set payer details using setPayerDetails()';
+		$errors['UNDEFINED_CARD_DETAILS']	 = 'Card details undefined. You must set card details using setCardDetails()';
+		$errors['UNDEFINED_PROFILE_DETAILS'] = 'Card details undefined. You must set card details using setCardDetails()';
+		$errors['INVALID_CARD_NUMBER']		 = 'Credit card number/CVV2 must be numeric';
+		$errors['INVALID_CARD_TYPE']		 = 'Credit card type must be Visa, MasterCard, Discover, Amex, Maestro or Solo (Case-sensitive)';
+		$errors['INVALID_CARD_CVV2']		 = 'Credit card CVV2 must be an integer';
+		$errors['INVALID_EXPIRY_DATE']		 = 'Credit card expiry must be an integer in date format MMYYYY';
+		$errors['CARD_VALIDATION_FAILED']	 = 'Credit card number validation failed';
 		echo 'PayPal API Error: '.$errors[$code].' in '.$trace[0]['file'].' on line '.$trace[0]['line'];
 	}
 }
