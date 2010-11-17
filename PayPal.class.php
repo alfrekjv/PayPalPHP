@@ -205,9 +205,11 @@ class PayPal
 	 * @param string $freq Number of billing periods in 1 billing cycle
 	 * @param string|int|float Billing amount for each billing cycle
 	 */
-	public function setProfileDetails($start, $desc, $period, $freq, $amt)
+	public function setProfileDetails($start, $desc, $period, $freq, $amt, $initAmt)
 	{
-		$this->profile = array('PROFILESTARTDATE' => $start, 'DESC' => $desc, 'BILLINGPERIOD' => $period,
+		$timestamp = strtotime($start);
+		$dateTime = date('Y-m-d', $timestamp).'T'.date('H:i:s', $timestamp).'Z';
+		$this->profile = array('PROFILESTARTDATE' => $dateTime, 'DESC' => $desc, 'BILLINGPERIOD' => $period, 'INITAMT' => $initAmt,
 							   'CURRENCYCODE' => $this->getCurrencyCode(), 'BILLINGFREQUENCY' => $freq, 'AMT' => $amt);
 	}
 	
@@ -304,6 +306,15 @@ class PayPal
 		$card = $this->creditCard;
 		$this->creditCard = null;
 		return $card;
+	}
+	
+	public function getRecurringPaymentsProfileDetails($profileID)
+	{
+		$array = array('PROFILEID' => $profileID);
+		$this->buildRequest('getRecurringPaymentsProfileDetails', $array);
+		if($this->execute()) return $this->response;
+		if($this->debug) $this->debug();
+		return false;
 	}
 	
 	/**
@@ -513,7 +524,7 @@ class PayPal
 		$errors['MAX_RECIPIENTS']			 = 'Maximum of 250 recipients per Mass Payment transaction';
 		$errors['UNDEFINED_PAYER_DETAILS']	 = 'Payer details undefined. You must set payer details using setPayerDetails()';
 		$errors['UNDEFINED_CARD_DETAILS']	 = 'Card details undefined. You must set card details using setCardDetails()';
-		$errors['UNDEFINED_PROFILE_DETAILS'] = 'Card details undefined. You must set card details using setCardDetails()';
+		$errors['UNDEFINED_PROFILE_DETAILS'] = 'Profile details undefined. You must set profile details using setProfileDetails()';
 		$errors['INVALID_CARD_NUMBER']		 = 'Credit card number/CVV2 must be numeric';
 		$errors['INVALID_CARD_TYPE']		 = 'Credit card type must be Visa, MasterCard, Discover, Amex, Maestro or Solo (Case-sensitive)';
 		$errors['INVALID_CARD_CVV2']		 = 'Credit card CVV2 must be an integer';
