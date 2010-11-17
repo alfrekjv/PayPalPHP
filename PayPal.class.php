@@ -143,6 +143,7 @@ class PayPal
 	 */
 	public function addressVerify($email, $street, $zip)
 	{
+		if(!$this->validateEmail($email)) $this->error('INVALID_EMAIL_ADDRESS');
 		$array = array('EMAIL' => $email, 'STREET' => $street, 'ZIP' => $zip);
 		$this->buildRequest('addressVerify', $array);
 		if($this->execute()) return $this->response;
@@ -240,6 +241,7 @@ class PayPal
 	 */
 	public function setPayerDetails($email, $street, $city, $state, $code, $zip)
 	{
+		if(!$this->validateEmail($email)) $this->error('INVALID_EMAIL_ADDRESS');
 		$this->payer = array('EMAIL' => $email, 'STREET' => $street, 'CITY' =>$city, 
 							 'STATE' => $state, 'COUNTRYCODE' => $code, 'ZIP' => $zip);
 	}
@@ -335,7 +337,6 @@ class PayPal
 	
 	/**
 	 * Add a mass payment recipient
-	 * @todo Add email validation
 	 * @param string $email
 	 * @param string|int|float $amt
 	 * @return void
@@ -343,12 +344,23 @@ class PayPal
 	public function addRecipient($email, $amt)
 	{
 		$amt = str_replace(',', '', $amt);
+		if(!$this->validateEmail($email)) $this->error('INVALID_EMAIL_ADDRESS');
 		if(!is_numeric($amt)) $this->error('INVALID_PRICE');
 		elseif(count($this->recipients) >= 250) $this->error('MAX_RECIPIENTS');
 		else {
 			$amt = number_format($amt, 2, '.', '');
 			$this->recipients[] = array('email' => $email, 'amt' => $amt);
 		}
+	}
+	
+	/**
+	 * Validate an email address
+	 * @param string $email
+	 */
+	private function validateEmail($email)
+	{
+		if(filter_var($email, FILTER_VALIDATE_EMAIL)) return true;
+		return false;
 	}
 	
 	/**
@@ -521,6 +533,7 @@ class PayPal
 		$errors['UNDEFINED_CURRENCY_CODE']	 = 'Currency code is undefined. Set currency code using setCurrencyCode()';
 		$errors['INVALID_TRANSACTIONID']	 = 'Transaction ID must be an alphanumeric string and contain 17 characters';
 		$errors['INVALID_RECIPIENTS']		 = 'No recipients added. Add at least 1 recipient using addRecipient()';
+		$errors['INVALID_EMAIL_ADDRESS']	 = 'Invalid email address';
 		$errors['MAX_RECIPIENTS']			 = 'Maximum of 250 recipients per Mass Payment transaction';
 		$errors['UNDEFINED_PAYER_DETAILS']	 = 'Payer details undefined. You must set payer details using setPayerDetails()';
 		$errors['UNDEFINED_CARD_DETAILS']	 = 'Card details undefined. You must set card details using setCardDetails()';
