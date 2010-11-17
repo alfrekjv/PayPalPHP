@@ -205,7 +205,7 @@ class PayPal
 	 * @param string $freq Number of billing periods in 1 billing cycle
 	 * @param string|int|float Billing amount for each billing cycle
 	 */
-	public function setProfileDetails($start, $desc, $period, $freq, $amt, $initAmt)
+	public function setProfileDetails($start, $desc, $period, $freq, $amt, $initAmt = 0.00)
 	{
 		$timestamp = strtotime($start);
 		$dateTime = date('Y-m-d', $timestamp).'T'.date('H:i:s', $timestamp).'Z';

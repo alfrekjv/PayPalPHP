@@ -12,7 +12,7 @@ date_default_timezone_set('Europe/London');
 
 // Set currency code, profile, payer and card details
 $paypal->setCurrencyCode('GBP');
-$paypal->setProfileDetails('DATE', 'DESCRIPTION', 'PERIOD', 'NO_OF_PAYMENTS', 'BILLING_AMOUNT');
+$paypal->setProfileDetails('DATE', 'DESCRIPTION', 'PERIOD', 'NO_OF_PAYMENTS', 'BILLING_AMOUNT', 'INITIAL AMOUNT');
 $paypal->setPayerDetails('EMAIL_ADDRESS', 'STREET', 'CITY', 'STATE', 'CODE', 'ZIP');
 $paypal->setCardDetails('CARD_TYPE', 'CARD_NUMBER', 'EXPIRY_MMYYYY', 'CVV2');
 
