@@ -283,7 +283,7 @@ class PayPal
 	
 	/**
 	 * Validate credit card number against regex and mod 10 algorithm
-	 * @todo Add Maestro and Solo card support
+	 * Supported credit cards listen in $this->cardTypes
 	 * @param string $type
 	 * @param string $number
 	 */
