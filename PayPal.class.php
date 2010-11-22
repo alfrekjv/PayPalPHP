@@ -40,7 +40,9 @@ class PayPal
 	private $cardTypes = array('VISA' 		=> '/^4\d{12}(\d{3})?$/',
 							   'MASTERCARD' => '/^5[1-5]\d{14}$/',
 							   'DISCOVER' 	=> '/^6011\d{14}$/',
-							   'AMEX' 		=> '/^3(4|7)\d{13}$/');
+							   'AMEX' 		=> '/^3(4|7)\d{13}$/',
+							   'SOLO'		=> '/^6767\d{12}(\d{2,3})?$/',
+                			   'MAESTRO'	=> '/^(5020|5038|6304|6759|6761)\d{12}(\d{2,3})?$/');
 	
 	/**
 	 * Check and set API credentials and environment
