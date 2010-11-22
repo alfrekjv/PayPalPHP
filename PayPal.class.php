@@ -5,7 +5,7 @@
  * @internal This wrapper is incomplete and subject to change.
  * @author Ben Tadiar <ben@bentadiar.co.uk>
  * @package PayPalPHP
- * @version 0.2
+ * @version 0.2.1
  */
 
 class PayPal

@@ -9,6 +9,10 @@ PayPalPHP is a PHP5 implementation of the [PayPal NVP API][]
 
 ### Change Log
 
+#### 0.2.1
+* Added recurring payments methods (createRecurringPaymentsProfile, getRecurringPaymentsProfileDetails).
+* Bug fixes and cleanup.
+
 #### 0.2
 * Prevent URL encoding of ampersands in query string (causes 'Unspecified Method' error).
 * Added reverseTransaction, massPay, getPalDetails and addressVerify methods.
@@ -18,6 +22,7 @@ PayPalPHP is a PHP5 implementation of the [PayPal NVP API][]
 ### Release Notes
 
 - At present, this API is incomplete and subject to change.
+- Some methods require a Website Payments Pro account which is chargeable in the live environment.
 - You will need to set your live/sandbox API user credentials in /examples/credentials.php in order for the examples provided to function.
 - Implementations of all methods can be found in the examples directory.
 
