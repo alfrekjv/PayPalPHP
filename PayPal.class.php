@@ -310,6 +310,11 @@ class PayPal
 		return $card;
 	}
 	
+	/**
+	 * Obtain information about a recurring payments profile
+	 * @param string $profileID
+	 * @return array
+	 */
 	public function getRecurringPaymentsProfileDetails($profileID)
 	{
 		$array = array('PROFILEID' => $profileID);
