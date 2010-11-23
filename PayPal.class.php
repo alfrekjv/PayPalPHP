@@ -185,6 +185,10 @@ class PayPal
 	
 	/**
 	 * Create a recurring payments profile
+	 * While testing, status was found to be be 'PendingProfile' if an ititial
+	 * payment was made in a currency different to that of the seller's account.
+	 * To resolve this, if a multi-currency profile is required, add the foreign currency
+	 * to your PayPal account via Profile > Add/remove currencies.
 	 * @return array
 	 */
 	public function createRecurringPaymentsProfile()
