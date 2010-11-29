@@ -17,7 +17,7 @@ class PayPal
 	
 	// API configuration (API version, endpoints, URLs)
 	private $debug		 = true;
-	private $version     = '64.0';
+	private $version     = '65.0';
 	private $endpoints   = array('LIVE' => 'https://api-3t.paypal.com/nvp', 'SANDBOX' => 'https://api-3t.sandbox.paypal.com/nvp');
 	private $paypalURLs  = array('LIVE' => 'https://www.paypal.com/', 'SANDBOX' => 'https://www.sandbox.paypal.com/');
 	
