@@ -1,11 +1,12 @@
 <?php
-
 /**
  * A PHP5 implementation of the PayPal NVP (Name-Value Pairs) API
  * @internal This wrapper is incomplete and subject to change.
  * @author Ben Tadiar <ben@bentadiar.co.uk>
  * @package PayPalPHP
  * @version 0.2.1
+ * 
+ * zeknoss branch
  */
 
 class PayPal
@@ -14,36 +15,39 @@ class PayPal
 	private $username   = null;
 	private $password   = null;
 	private $signature  = null;
-	
+
 	// API configuration (API version, endpoints, URLs)
-	private $debug		 = true;
-	private $version     = '65.0';
+	private $debug		 = false;
+	private $version     = '119.0'; // Updated the version number to the most recent one
 	private $endpoints   = array('LIVE' => 'https://api-3t.paypal.com/nvp', 'SANDBOX' => 'https://api-3t.sandbox.paypal.com/nvp');
 	private $paypalURLs  = array('LIVE' => 'https://www.paypal.com/', 'SANDBOX' => 'https://www.sandbox.paypal.com/');
-	
+
 	// Forward declare other variables
+	// Added shipping prices
 	public  $response	 = null;
 	private $items	 	 = null;
+	private $shipping	 = '0';
 	private $payer		 = null;
 	private $creditCard  = null;
 	private $profile	 = null;
 	private $recipients  = null;
 	private $currency	 = null;
 	private $environment = null;
-	
+
 	// Supported currencies in ISO-4217 format
-	private $currencies = array('AUD', 'BRL', 'CAD', 'CZK', 'DKK', 'EUR', 'HKD', 'HUF', 
-								'ILS', 'JPY', 'MYR', 'MXN', 'NOK', 'NZD', 'PHP', 'PLN', 
-								'GBP', 'SGD', 'SEK', 'CHF', 'TWD', 'THB', 'USD');
-	
+	// Added Turkish currency support (not available in sandbox environment)
+	private $currencies = array('AUD', 'BRL', 'CAD', 'CZK', 'DKK', 'EUR', 'HKD', 'HUF',
+		'ILS', 'JPY', 'MYR', 'MXN', 'NOK', 'NZD', 'PHP', 'PLN',
+		'GBP', 'SGD', 'SEK', 'CHF', 'TWD', 'TRY', 'THB', 'USD');
+
 	// Supported credit card types and corresponding validation regex
 	private $cardTypes = array('VISA' 		=> '/^4\d{12}(\d{3})?$/',
-							   'MASTERCARD' => '/^5[1-5]\d{14}$/',
-							   'DISCOVER' 	=> '/^6011\d{14}$/',
-							   'AMEX' 		=> '/^3(4|7)\d{13}$/',
-							   'SOLO'		=> '/^6767\d{12}(\d{2,3})?$/',
-                			   'MAESTRO'	=> '/^(5020|5038|6304|6759|6761)\d{12}(\d{2,3})?$/');
-	
+		'MASTERCARD' => '/^5[1-5]\d{14}$/',
+		'DISCOVER' 	=> '/^6011\d{14}$/',
+		'AMEX' 		=> '/^3(4|7)\d{13}$/',
+		'SOLO'		=> '/^6767\d{12}(\d{2,3})?$/',
+		'MAESTRO'	=> '/^(5020|5038|6304|6759|6761)\d{12}(\d{2,3})?$/');
+
 	/**
 	 * Check and set API credentials and environment
 	 * @param string $env
@@ -57,7 +61,7 @@ class PayPal
 		$this->signature = $signature;
 		$this->environment = $env;
 	}
-	
+
 	/**
 	 * Obtain the available balance for a PayPal account
 	 * @return array|bool
@@ -69,7 +73,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Obtain information about a PayPal account (merchant account number, locale etc.)
 	 * @return array|bool array
@@ -81,7 +85,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Initiates an Express Checkout transaction
 	 * @param array $items Items to include in the transaction
@@ -89,14 +93,23 @@ class PayPal
 	 * @param string $returnURL URL redirect after confirmed payment
 	 * @param string $cancelURL URL redirect after cancelled payment
 	 * @return void Redirect on success, else return false
+	 * 
+	 * Added landing page and solution type parameters
+	 * For more info, please read the PayPal NVP documentation
 	 */
-	public function setExpressCheckout($returnURL, $cancelURL)
+	public function setExpressCheckout($returnURL, $cancelURL, $landingPage = 'Billing', $solutionType = 'Sole')
 	{
 		if(!isset($_GET['token'])){
-			$array = array('RETURNURL' => $returnURL, 'CANCELURL' => $cancelURL);
+			$array = array(
+				'LANDINGPAGE' => $landingPage,
+				'SOLUTIONTYPE' => $solutionType,
+				'USERSELECTEDFUNDINGSOURCE' => 'CreditCard',
+				'RETURNURL' => $returnURL,
+				'CANCELURL' => $cancelURL);
 			$array = array_merge($array, $this->getItemTotals());
-			$this->buildRequest('setExpressCheckout', $array);
-			if($this->execute()){
+			$this->buildRequest('SetExpressCheckout', $array);
+			$ex = $this->execute();
+			if($ex){
 				header('Location: '.$this->paypalURLs[$this->environment].'webscr?cmd=_express-checkout&token='.$this->response['TOKEN']);
 				exit;
 			}
@@ -104,7 +117,7 @@ class PayPal
 			return false;
 		}
 	}
-	
+
 	/**
 	 * Obtain information about an Express Checkout transaction
 	 * @return array Transaction details
@@ -117,7 +130,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Completes an Express Checkout transaction.
 	 * @return bool
@@ -126,16 +139,17 @@ class PayPal
 	{
 		$d = $this->getExpressCheckoutDetails();
 		$array = array('TOKEN' => $d['TOKEN'],
-					   'PAYMENTREQUEST_0_PAYMENTACTION' => 'Sale',
-					   'PAYMENTREQUEST_0_AMT' => $d['PAYMENTREQUEST_0_AMT'].' '.$d['PAYMENTREQUEST_0_CURRENCYCODE'],
-					   'PAYERID' => $d['PAYERID']);
+			'PAYMENTREQUEST_0_PAYMENTACTION' => 'Sale',
+			'PAYMENTREQUEST_0_AMT' => $d['PAYMENTREQUEST_0_AMT'].' '.$d['PAYMENTREQUEST_0_CURRENCYCODE'],
+			'LOCALECODE' => helpers::_e('LOCALECODE'),
+			'PAYERID' => $d['PAYERID']);
 		$array = array_merge($array, $d);
 		$this->buildRequest('doExpressCheckoutPayment', $array);
 		if($this->execute()) return $this->response;
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Verifies a postal address/code against the email address of a PayPal account holder
 	 * @param string Email address to match against
@@ -152,7 +166,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Reverse a transaction
 	 * @param $transaction 17 character alphanumeric transaction ID
@@ -167,7 +181,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Obtain information about a specific transaction
 	 * @param string $transaction 17 character alphanumeric transaction ID
@@ -182,7 +196,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Create a recurring payments profile
 	 * While testing, status was found to be be 'PendingProfile' if an ititial
@@ -202,7 +216,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Set profile details associated with a recurring payment profile
 	 * @todo Validate parameters
@@ -217,9 +231,9 @@ class PayPal
 		$timestamp = strtotime($start);
 		$dateTime = date('Y-m-d', $timestamp).'T'.date('H:i:s', $timestamp).'Z';
 		$this->profile = array('PROFILESTARTDATE' => $dateTime, 'DESC' => $desc, 'BILLINGPERIOD' => $period, 'INITAMT' => $initAmt,
-							   'CURRENCYCODE' => $this->getCurrencyCode(), 'BILLINGFREQUENCY' => $freq, 'AMT' => $amt);
+			'CURRENCYCODE' => $this->getCurrencyCode(), 'BILLINGFREQUENCY' => $freq, 'AMT' => $amt);
 	}
-	
+
 	/**
 	 * Return profile details set using setProfileDetails()
 	 * @return array
@@ -234,7 +248,7 @@ class PayPal
 		$this->profile = null;
 		return $profile;
 	}
-	
+
 	/**
 	 * Set payer details associated with a recurring payment profile
 	 * @todo Validate input
@@ -248,10 +262,10 @@ class PayPal
 	public function setPayerDetails($email, $street, $city, $state, $code, $zip)
 	{
 		if(!$this->validateEmail($email)) $this->error('INVALID_EMAIL_ADDRESS');
-		$this->payer = array('EMAIL' => $email, 'STREET' => $street, 'CITY' =>$city, 
-							 'STATE' => $state, 'COUNTRYCODE' => $code, 'ZIP' => $zip);
+		$this->payer = array('EMAIL' => $email, 'STREET' => $street, 'CITY' =>$city,
+			'STATE' => $state, 'COUNTRYCODE' => $code, 'ZIP' => $zip);
 	}
-	
+
 	/**
 	 * Return payer details set using setPayerDetails()
 	 * @return array
@@ -266,7 +280,7 @@ class PayPal
 		$this->payer = null;
 		return $payer;
 	}
-	
+
 	/**
 	 * Set credit card details associated with a recurring payment profile
 	 * @param string $type Supported credit card type
@@ -284,7 +298,7 @@ class PayPal
 		elseif(!is_int($cvv2)) $this->error('INVALID_CARD_CVV2');
 		else $this->creditCard = array('CREDITCARDTYPE' => $type, 'ACCT' => $number, 'EXPDATE' => $expiry, 'CVV2' => $cvv2);
 	}
-	
+
 	/**
 	 * Validate credit card number against regex and mod 10 algorithm
 	 * Supported credit cards listen in $this->cardTypes
@@ -294,13 +308,13 @@ class PayPal
 	private function cardValidate($type, $number)
 	{
 		if(preg_match($this->cardTypes[$type], $number)){
-	    	for($i = 0; $i < strlen($number)-1; $i = $i+2){
-	        	$number[$i] = array_sum(str_split($number[$i] * 2));
-	    	}
-	    	if(array_sum(str_split($number)) % 10 == 0) return true;
+			for($i = 0; $i < strlen($number)-1; $i = $i+2){
+				$number[$i] = array_sum(str_split($number[$i] * 2));
+			}
+			if(array_sum(str_split($number)) % 10 == 0) return true;
 		}
 	}
-	
+
 	/**
 	 * Return card details set using setCardDetails()
 	 * @return array
@@ -315,7 +329,7 @@ class PayPal
 		$this->creditCard = null;
 		return $card;
 	}
-	
+
 	/**
 	 * Obtain information about a recurring payments profile
 	 * @param string $profileID
@@ -329,7 +343,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Make a payment to one or more PayPal account holders
 	 * @todo Implement User ID receiver type
@@ -345,7 +359,7 @@ class PayPal
 		if($this->debug) $this->debug();
 		return false;
 	}
-	
+
 	/**
 	 * Add a mass payment recipient
 	 * @param string $email
@@ -363,7 +377,7 @@ class PayPal
 			$this->recipients[] = array('email' => $email, 'amt' => $amt);
 		}
 	}
-	
+
 	/**
 	 * Validate an email address
 	 * @param string $email
@@ -373,7 +387,7 @@ class PayPal
 		if(filter_var($email, FILTER_VALIDATE_EMAIL)) return true;
 		return false;
 	}
-	
+
 	/**
 	 * Return an array of recipients to be merged with current NVP array
 	 * @return array
@@ -393,7 +407,7 @@ class PayPal
 		$this->recipients = null;
 		return $array;
 	}
-	
+
 	/**
 	 * Add an item to the array of items for a transaction
 	 * Note: Thousands separator must be ','
@@ -401,6 +415,9 @@ class PayPal
 	 * @param string $desc Item Description
 	 * @param string|int|float $amt Numeric price value
 	 * @param int $qty Item quantity
+	 * 
+	 * Changed the array storing method because of some setbacks
+	 * caused by products with same names
 	 */
 	public function addItem($name, $desc, $amt, $qty)
 	{
@@ -408,15 +425,32 @@ class PayPal
 		if(!is_numeric($amt)) $this->error('INVALID_AMT');
 		else {
 			$amt = number_format($amt, 2, '.', '');
-			$this->items[$name] = array('desc' => $desc, 'price' => $amt, 'qty' => $qty);
+			$this->items[] = array('name' => $name, 'desc' => $desc, 'price' => $amt, 'qty' => $qty);
 		}
 	}
-	
+
+	/**
+	* Added a new method called addShipping
+	* Add shipping cost to the payment
+	* @param string|int|float $amt Shipping Amount
+	*/
+	public function addShipping($price)
+	{
+		if(!is_numeric($price)) $this->error('INVALID_AMT');
+		else {
+			$price = number_format($price, 2, '.', '');
+			$this->shipping = $price;
+		}
+	}
+
 	/**
 	 * Return an array of items to be merged with current NVP array
 	 * @param array $items Items to include in the transaction
 	 * @param string $currency Supported ISO-4217 currency code
 	 * @return array
+	 * 
+	 * Added PAYMENTREQUEST_0_SHIPPINGAMT to the order details
+	 * Changed the product name reference from $key to $val['name']
 	 */
 	private function getItemTotals()
 	{
@@ -428,19 +462,22 @@ class PayPal
 			return false;
 		}
 		foreach($this->items as $key => $val){
-			$array['L_PAYMENTREQUEST_0_NAME'.$i] = $key;
+			$array['L_PAYMENTREQUEST_0_NAME'.$i] = $val['name'];
 			$array['L_PAYMENTREQUEST_0_DESC'.$i] = $val['desc'];
-			$array['L_PAYMENTREQUEST_0_AMT'.$i] = $val['price'].' '.$currency;
+			$array['L_PAYMENTREQUEST_0_AMT'.$i] = $val['price'];
 			$array['L_PAYMENTREQUEST_0_QTY'.$i] = $val['qty'];
 			$total = $total + ($val['price'] * $val['qty']);
 			$i++;
 		}
-		$array['PAYMENTREQUEST_0_AMT'] = $total.' '.$currency;
+
+		$array['PAYMENTREQUEST_0_AMT'] = ($total+$this->shipping);
 		$array['PAYMENTREQUEST_0_CURRENCYCODE'] = $currency;
+		$array['PAYMENTREQUEST_0_SHIPPINGAMT'] = $this->shipping;
+		$array['PAYMENTREQUEST_0_ITEMAMT'] = $total;
 		$this->items = null;
 		return $array;
 	}
-	
+
 	/**
 	 * Set the transaction currency code
 	 * @param string $currency
@@ -451,7 +488,7 @@ class PayPal
 		if(!in_array($currency, $this->currencies)) $this->error('INVALID_CURRENCY_CODE');
 		else $this->currency = $currency;
 	}
-	
+
 	/**
 	 * Return the currency code
 	 * @return string
@@ -466,7 +503,7 @@ class PayPal
 		$this->currency = null;
 		return $currency;
 	}
-	
+
 	/**
 	 * Merge 2 arrays and create a name-value pair string from
 	 * the resulting array using http_build_query()
@@ -480,7 +517,7 @@ class PayPal
 		$array = array_merge($array, $nvpArray);
 		$this->request = http_build_query($array, '', '&');
 	}
-	
+
 	/**
 	 * Execute an API call via cURL
 	 * @return bool|array Return false on failure, response array on success
@@ -490,7 +527,7 @@ class PayPal
 		$ch = curl_init($this->endpoints[$this->environment]);
 		curl_setopt($ch, CURLOPT_VERBOSE, 1);
 		$certificate = dirname(__FILE__).'/CARootCerts.pem';
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 		curl_setopt($ch, CURLOPT_CAINFO, $certificate);
 		curl_setopt($ch, CURLOPT_POST, 1);
@@ -502,7 +539,7 @@ class PayPal
 		if($this->response['ACK'] == 'Failure') return false;
 		return true;
 	}
-	
+
 	/**
 	 * Convert an NVP response to an associative array
 	 * @param string $output
@@ -517,7 +554,7 @@ class PayPal
 		}
 		return $return;
 	}
-	
+
 	/**
 	 * Simple response debugger
 	 * var_dump $this->response so we can debug
@@ -526,9 +563,9 @@ class PayPal
 	private function debug()
 	{
 		$this->response['REQUEST'] = $this->request;
-		var_dump($this->response);
+		helpers::pre_print($this->response);
 	}
-	
+
 	/**
 	 * PayPalPHP error handler
 	 * @param string $code
@@ -557,5 +594,3 @@ class PayPal
 		echo 'PayPal API Error: '.$errors[$code].' in '.$trace[0]['file'].' on line '.$trace[0]['line'];
 	}
 }
-
-?>
